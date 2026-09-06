@@ -45,13 +45,9 @@ logger = logging.getLogger(__name__)
 # Supported operating systems
 OS_IMAGES = {
     "ubuntu-22.04": ("Ubuntu 22.04", "ubuntu:22.04"),
-    "debian-12": ("Debian 12", "debian:bookworm"),
-    "ubuntu-24.04": ("Ubuntu 24.04", "ubuntu:24.04"),
     "debian-11": ("Debian 11", "debian:11"),
-    # Backward compatibility for existing database records
-    "ubuntu": ("Ubuntu 22.04", "ubuntu:22.04"),
-    "debian": ("Debian 12", "debian:bookworm"),
 }
+
 
 def get_os_details(os_type):
     return OS_IMAGES.get(os_type, OS_IMAGES["ubuntu-22.04"])
@@ -391,17 +387,20 @@ async def async_install_sshx(container_id, os_type):
         logger.error(f"Failed to install SSHX in {container_id}: {e}")
 
 # SSHX capture
+ANSI_ESCAPE_RE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
 async def capture_sshx_link(process):
     while True:
         try:
             output = await asyncio.wait_for(process.stdout.readline(), timeout=30.0)
             if not output:
                 break
-            output = output.decode('utf-8').strip()
-            if "link:" in output.lower() and "sshx.io/" in output.lower():
+            output = output.decode('utf-8', errors='ignore').strip()
+            output = ANSI_ESCAPE_RE.sub('', output)
+            if "sshx.io/" in output.lower():
                 match = re.search(r"https://sshx\.io/\S+", output)
                 if match:
-                    return match.group(0).rstrip(".,)")
+                    return match.group(0).rstrip(".,)]}")
         except asyncio.TimeoutError:
             break
     return None
@@ -440,7 +439,7 @@ async def regen_ssh_command(interaction: discord.Interaction, vps_identifier, se
         ssh_line = await capture_sshx_link(exec_process)
         if ssh_line:
             update_vps_ssh(container_id, ssh_line)
-            embed = discord.Embed(title="New SSHX Session Generated", description=f"```{ssh_line}```", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
+            embed = discord.Embed(title="New SSHX Session Generated", description=f"[Connect to VPS]({ssh_line})", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
             embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
             try:
                 await target_user.send(embed=embed)
@@ -542,7 +541,7 @@ async def reinstall_vps(interaction: discord.Interaction, vps_identifier, os_typ
         if ssh_line:
             add_vps(user_id, new_container_id, new_container_name, os_type, hostname, ssh_line, ram, cpu, disk)
             os_name = get_os_details(os_type)[0]
-            embed = discord.Embed(title="VPS Reinstalled Successfully", description=f"OS: {os_name}\n```{ssh_line}```", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
+            embed = discord.Embed(title="VPS Reinstalled Successfully", description=f"OS: {os_name}\n[Connect to VPS]({ssh_line})", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
             embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
             try:
                 await target_user.send(embed=embed)
@@ -616,7 +615,7 @@ async def create_vps(interaction: discord.Interaction, os_type, ram=DEFAULT_RAM,
     if ssh_line:
         add_vps(user_id, container_id, container_name, os_type, hostname, ssh_line, ram, cpu, disk)
         os_name = get_os_details(os_type)[0]
-        embed = discord.Embed(title="VPS Instance Created", description=f"OS: {os_name}\nRAM: {ram} | CPU: {cpu} | Disk: {disk}\n```{ssh_line}```", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
+        embed = discord.Embed(title="VPS Instance Created", description=f"OS: {os_name}\nRAM: {ram} | CPU: {cpu} | Disk: {disk}\n[Connect to VPS]({ssh_line})", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
         embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
         try:
             await target_user.send(embed=embed)
@@ -890,7 +889,7 @@ async def admin_vps_info(interaction: discord.Interaction, target_user: discord.
     container_id = vps['container_id']
     uptime = get_uptime(container_id)
     stats = get_stats(container_id)
-    os_name = "Ubuntu 22.04" if vps['os_type'] == "ubuntu" else "Debian 12"
+    os_name = get_os_details(vps['os_type'])[0]
     embed = discord.Embed(title=f"{target_user.name} - VPS Details: {vps['container_name']}", color=discord.Color.blue(), timestamp=datetime.now(timezone.utc))
     embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     embed.add_field(name="OS", value=os_name, inline=True)
@@ -1029,8 +1028,6 @@ async def user_logs(interaction: discord.Interaction, vps_identifier: str, lines
 @app_commands.describe(os_type="The OS type for the VPS")
 @app_commands.choices(os_type=[
     app_commands.Choice(name="Ubuntu 22.04", value="ubuntu-22.04"),
-    app_commands.Choice(name="Debian 12", value="debian-12"),
-    app_commands.Choice(name="Ubuntu 24.04", value="ubuntu-24.04"),
     app_commands.Choice(name="Debian 11", value="debian-11")
 ])
 async def deploy(interaction: discord.Interaction, os_type: str):
@@ -1040,8 +1037,6 @@ async def deploy(interaction: discord.Interaction, os_type: str):
 @app_commands.describe(target_user="The target user", os_type="OS type", ram="RAM e.g. 2g (optional)", cpu="CPU cores (optional)", disk="Disk e.g. 20G (optional)")
 @app_commands.choices(os_type=[
     app_commands.Choice(name="Ubuntu 22.04", value="ubuntu-22.04"),
-    app_commands.Choice(name="Debian 12", value="debian-12"),
-    app_commands.Choice(name="Ubuntu 24.04", value="ubuntu-24.04"),
     app_commands.Choice(name="Debian 11", value="debian-11")
 ])
 async def admin_create(interaction: discord.Interaction, target_user: discord.User, os_type: str, ram: str = None, cpu: str = None, disk: str = None):
@@ -1069,7 +1064,7 @@ async def vps_info(interaction: discord.Interaction, vps_identifier: str = None)
     container_id = vps['container_id']
     uptime = get_uptime(container_id)
     stats = get_stats(container_id)
-    os_name = "Ubuntu 22.04" if vps['os_type'] == "ubuntu" else "Debian 12"
+    os_name = get_os_details(vps['os_type'])[0]
     embed = discord.Embed(title=f"VPS Details: {vps['container_name']}", color=discord.Color.blue(), timestamp=datetime.now(timezone.utc))
     embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     embed.add_field(name="OS", value=os_name, inline=True)
@@ -1112,11 +1107,9 @@ async def restart_vps(interaction: discord.Interaction, vps_identifier: str):
 @app_commands.describe(vps_identifier="VPS ID or Name", os_type="The new OS type")
 @app_commands.choices(os_type=[
     app_commands.Choice(name="Ubuntu 22.04", value="ubuntu-22.04"),
-    app_commands.Choice(name="Debian 12", value="debian-12"),
-    app_commands.Choice(name="Ubuntu 24.04", value="ubuntu-24.04"),
     app_commands.Choice(name="Debian 11", value="debian-11")
 ])
-async def reinstall(interaction: discord.Interaction, vps_identifier: str, os_type: str = "ubuntu"):
+async def reinstall(interaction: discord.Interaction, vps_identifier: str, os_type: str = "ubuntu-22.04"):
     await reinstall_vps(interaction, vps_identifier, os_type)
 
 @bot.tree.command(name="list", description="List all your VPS instances")
