@@ -1,25 +1,23 @@
 # IL8 VPS Deploy Bot
 
-A powerful Discord bot for deploying and managing Docker-based VPS instances with multiple Linux OS options.
+IL8 is a Discord VPS management bot by INFINITE LABS. It deploys and manages Docker-based VPS containers and provides SSHX web terminal access.
 
 ## Features
 
 - Docker-based VPS deployment
-- Ubuntu 22.04
-- Ubuntu 24.04
-- Debian 11
-- Debian 12
-- VPS management through Discord
-- VPS reinstall support
-- Admin VPS creation
-- Resource management
-- Automatic container management
-- Persistent VPS database
+- Ubuntu 22.04 support
+- Debian 11 support
+- SSHX web terminal access
+- VPS start, stop, restart and reinstall
+- User and admin VPS management
+- Custom resources for admin-created VPS
+- SQLite database persistence
+- Automatic Docker container management
 - Systemd service support
 
 ## Requirements
 
-- Ubuntu/Debian VPS
+- Ubuntu/Debian Linux VPS or server
 - Python 3
 - Docker
 - Root access
@@ -30,18 +28,11 @@ A powerful Discord bot for deploying and managing Docker-based VPS instances wit
 
 ### 1. Install Docker
 
-If Docker is not already installed:
-
 ```bash
 apt update -y
-apt install docker.io -y
+apt install -y docker.io
 systemctl enable docker
 systemctl start docker
-```
-
-Check Docker:
-
-```bash
 docker --version
 ```
 
@@ -52,108 +43,12 @@ git clone https://github.com/nxtinfinite481-png/vps-deploy-bot.git
 cd vps-deploy-bot
 ```
 
-### 3. Create the environment file
+### 3. Configure environment
 
 ```bash
 cp il8.env .env
-```
-
-Edit the `.env` file:
-
-```bash
 nano .env
 ```
-
-Add your Discord Bot Token and Admin ID:
-
-```env
-TOKEN=YOUR_DISCORD_BOT_TOKEN
-ADMIN_ID=paste your discord user id
-BOT_STATUS_NAME=IL8
-WATERMARK=Made by INFINITE
-DEFAULT_RAM=2g
-DEFAULT_CPU=1
-DEFAULT_DISK=10G
-VPS_HOSTNAME=infinite-vps
-```
-
-Save and exit.
-
-### 4. Install Python pip
-
-```bash
-apt install python3-pip -y
-```
-
-### 5. Allow system-wide pip installation
-
-```bash
-mkdir -p ~/.config/pip && echo -e "[global]\nbreak-system-packages = true" > ~/.config/pip/pip.conf
-```
-
-### 6. Install Python dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-## Run the Bot with Systemd
-
-Create the systemd service:
-
-```bash
-sudo nano /etc/systemd/system/il8.service
-```
-
-Add:
-
-```ini
-[Unit]
-Description=IL8 VPS Discord Bot
-After=network.target docker.service
-
-[Service]
-User=root
-WorkingDirectory=/root/vps-deploy-bot
-ExecStart=/usr/bin/python3 /root/vps-deploy-bot/bot.py
-Restart=always
-RestartSec=5
-Environment=PYTHONUNBUFFERED=1
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Save and exit.
-
-### Start the Bot
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart il8
-```
-
-### Enable the Bot on Boot
-
-```bash
-sudo systemctl enable il8
-```
-
-### Check Bot Status
-
-```bash
-sudo systemctl status il8
-```
-
-### View Bot Logs
-
-```bash
-journalctl -u il8 -f
-```
-
-## Environment Configuration
-
-The `.env` file should contain your bot configuration.
 
 Example:
 
@@ -168,45 +63,152 @@ DEFAULT_DISK=10G
 VPS_HOSTNAME=infinite-vps
 ```
 
-Keep your `.env` file private and never upload it to GitHub.
+### 4. Create the Python Virtual Environment
+
+A project-local virtual environment is used so the bot does not depend on the system Python path of the VPS.
+
+```bash
+apt install -y python3-venv
+python3 -m venv venv
+```
+
+### 5. Install Dependencies
+
+Install all bot dependencies inside the virtual environment:
+
+```bash
+./venv/bin/pip install --upgrade pip
+./venv/bin/pip install -r requirements.txt
+```
+
+### 6. Test the Bot
+
+Before creating the systemd service, test the bot manually:
+
+```bash
+./venv/bin/python bot.py
+```
+
+If the bot starts successfully, press:
+
+```text
+Ctrl+C
+```
+
+to stop the test.
+
+## Systemd Service
+
+Create the systemd service:
+
+```bash
+nano /etc/systemd/system/il8.service
+```
+
+Paste:
+
+```ini
+[Unit]
+Description=IL8 VPS Discord Bot
+After=network.target docker.service
+
+[Service]
+User=root
+WorkingDirectory=/root/vps-deploy-bot
+ExecStart=/root/vps-deploy-bot/venv/bin/python /root/vps-deploy-bot/bot.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Save the file and run:
+
+```bash
+systemctl daemon-reload
+systemctl enable il8
+systemctl restart il8
+```
+
+Check the bot status:
+
+```bash
+systemctl status il8 --no-pager
+```
+
+View live logs:
+
+```bash
+journalctl -u il8 -f
+```
+
+If everything is working correctly, the bot should appear online in Discord.
 
 ## Default VPS Configuration
 
-| Setting | Value |
-| --- | --- |
-| Default RAM | 2GB |
-| Default CPU | 1 Core |
-| Default Disk | 10GB |
+| Resource | Default |
+|---|---|
+| RAM | 2GB |
+| CPU | 1 Core |
+| Disk | 10GB |
 | VPS Limit / User | 1 |
 | Total VPS Limit | 50 |
 | Hostname | infinite-vps |
 
 ## Supported Operating Systems
 
-- Ubuntu 22.04
-- Ubuntu 24.04
-- Debian 11
-- Debian 12
+IL8 currently supports:
 
-## User Commands
+- Ubuntu 22.04
+- Debian 11
+
+## SSHX Access
+
+IL8 uses SSHX for web-based VPS terminal access.
+
+When a VPS is created, IL8 automatically:
+
+1. Creates the Docker VPS container
+2. Installs the required packages
+3. Installs SSHX
+4. Starts an SSHX session
+5. Generates an SSHX web access link
+6. Sends the access link to the user
+
+The `/ssh` command can also be used to generate a new SSHX access link for an existing VPS.
+
+## VPS Resources
+
+Default VPS resources:
 
 ```text
-/create <os>
+RAM: 2GB
+CPU: 1 Core
+Disk: 10GB
+```
+
+Docker memory and CPU limits are applied when the VPS container is created.
+
+## Commands
+
+### User Commands
+
+```text
+/create
 /list
-/vps-info [vps_id]
-/ssh [vps_id]
-/start <vps_id>
-/stop <vps_id>
-/restart <vps_id>
-/reinstall <vps_id> [os]
-/delete <vps_id>
-/about
-/logs <vps_id> [lines]
-/ping
+/vps-info
+/ssh
+/start
+/stop
+/restart
+/reinstall
+/delete
 /help
 ```
 
-## Admin Commands
+### Admin Commands
 
 ```text
 /admin-create
@@ -215,6 +217,14 @@ Keep your `.env` file private and never upload it to GitHub.
 /admin-vps-info
 /admin-del-user
 /admin-stop-all
+```
+
+### Additional Commands
+
+```text
+/about
+/logs
+/ping
 /admin-manage
 /admin-stats
 /admin-logs
@@ -222,18 +232,168 @@ Keep your `.env` file private and never upload it to GitHub.
 /admin-unban
 ```
 
+## VPS Management
+
+Users can manage their VPS using:
+
+```text
+/start
+/stop
+/restart
+/reinstall
+/delete
+```
+
+SSHX access can be generated using:
+
+```text
+/ssh
+```
+
+VPS information can be viewed using:
+
+```text
+/vps-info
+```
+
+VPS list can be viewed using:
+
+```text
+/list
+```
+
+## Admin VPS Management
+
+Administrators can create VPS instances with custom resources using:
+
+```text
+/admin-create
+```
+
+Administrators can manage VPS instances using:
+
+```text
+/admin-list
+/admin-vps-info
+/admin-stop-all
+/admin-del-user
+```
+
+## Database
+
+IL8 uses SQLite for persistent VPS and user data.
+
+Database file:
+
+```text
+bot.db
+```
+
+The database is automatically created and maintained by the bot.
+
+## Logs
+
+Bot logs are stored in:
+
+```text
+bot.log
+```
+
+Systemd logs can be viewed with:
+
+```bash
+journalctl -u il8 -f
+```
+
+## Project Files
+
+```text
+vps-deploy-bot/
+├── bot.py
+├── requirements.txt
+├── il8.env
+├── .env
+├── bot.db
+├── bot.log
+└── venv/
+```
+
+## Requirements
+
+`requirements.txt`:
+
+```text
+discord.py>=2.3,<3
+docker>=7.0,<8
+python-dotenv>=1.0,<2
+```
+
+## Updating the Bot
+
+Go to the bot directory:
+
+```bash
+cd /root/vps-deploy-bot
+```
+
+Replace `bot.py` with the latest version.
+
+Then restart the service:
+
+```bash
+systemctl restart il8
+```
+
+Check the status:
+
+```bash
+systemctl status il8 --no-pager
+```
+
+## Useful Commands
+
+Stop the bot:
+
+```bash
+systemctl stop il8
+```
+
+Start the bot:
+
+```bash
+systemctl start il8
+```
+
+Restart the bot:
+
+```bash
+systemctl restart il8
+```
+
+Check status:
+
+```bash
+systemctl status il8 --no-pager
+```
+
+View logs:
+
+```bash
+journalctl -u il8 -f
+```
+
 ## Developer
 
-**INFINITE**
+**IL8**
 
-Full-Stack Developer, DevOps Enthusiast and Content Creator focused on server infrastructure, VPS systems, Linux, hosting, automation, Discord bots and Minecraft server technologies.
+**Version:** v1.0
 
-### Links
+**Developer:** INFINITE
 
-- YouTube: https://www.youtube.com/@infinite8labs
-- GitHub: https://github.com/nxtinfinite481-png
-- Discord: https://discord.gg/pG22dSmAZD
+**YouTube:** https://www.youtube.com/@infinite8labs
 
----
+**GitHub:** https://github.com/nxtinfinite481-png
+
+**Discord:** https://discord.gg/pG22dSmAZD
 
 Made by INFINITE
