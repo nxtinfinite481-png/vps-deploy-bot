@@ -372,8 +372,8 @@ async def async_docker_rm(container_id):
         logger.error(f"Docker rm error for {container_id}: {e}")
         return False
 
-async def async_install_tmate(container_id, os_type):
-    install_cmd = "apt-get update && apt-get install -y tmate curl wget sudo openssh-client"
+async def async_install_sshx(container_id, os_type):
+    install_cmd = "apt-get update && apt-get install -y curl wget sudo openssh-client && curl -sSf https://sshx.io/get | sh"
     try:
         proc = await asyncio.create_subprocess_exec(
             "docker", "exec", container_id, "bash", "-c", install_cmd,
@@ -382,37 +382,39 @@ async def async_install_tmate(container_id, os_type):
         )
         _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120.0)
         if proc.returncode != 0:
-            logger.warning(f"Tmate install warning for {container_id}: {stderr.decode()}")
+            logger.warning(f"SSHX install warning for {container_id}: {stderr.decode()}")
         else:
-            logger.info(f"Tmate installed in {container_id}")
+            logger.info(f"SSHX installed in {container_id}")
     except asyncio.TimeoutError:
-        logger.error(f"Tmate install timeout for {container_id}")
+        logger.error(f"SSHX install timeout for {container_id}")
     except Exception as e:
-        logger.error(f"Failed to install tmate in {container_id}: {e}")
+        logger.error(f"Failed to install SSHX in {container_id}: {e}")
 
-# SSH capture
-async def capture_ssh_session_line(process):
+# SSHX capture
+async def capture_sshx_link(process):
     while True:
         try:
             output = await asyncio.wait_for(process.stdout.readline(), timeout=30.0)
             if not output:
                 break
             output = output.decode('utf-8').strip()
-            if "ssh session:" in output.lower():
-                return output.split("ssh session:")[-1].strip()
+            if "link:" in output.lower() and "sshx.io/" in output.lower():
+                match = re.search(r"https://sshx\.io/\S+", output)
+                if match:
+                    return match.group(0).rstrip(".,)")
         except asyncio.TimeoutError:
             break
     return None
 
-async def docker_exec_tmate(container_id):
+async def docker_exec_sshx(container_id):
     try:
         exec_cmd = await asyncio.create_subprocess_exec(
-            "docker", "exec", container_id, "tmate", "-F",
+            "docker", "exec", container_id, "sshx",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         return exec_cmd
     except Exception as e:
-        logger.error(f"Tmate exec failed: {e}")
+        logger.error(f"SSHX exec failed: {e}")
         return None
 
 # Generic regen SSH
@@ -426,40 +428,40 @@ async def regen_ssh_command(interaction: discord.Interaction, vps_identifier, se
             await interaction.response.send_message(embed=embed, ephemeral=True)
         return False
     if vps['status'] != "running":
-        embed = discord.Embed(description="VPS must be running to generate SSH.", color=discord.Color.red())
+        embed = discord.Embed(description="VPS must be running to generate SSHX access.", color=discord.Color.red())
         if send_response:
             await interaction.response.send_message(embed=embed, ephemeral=True)
         return False
     if send_response:
         await interaction.response.defer(ephemeral=True)
     container_id = vps['container_id']
-    exec_process = await docker_exec_tmate(container_id)
+    exec_process = await docker_exec_sshx(container_id)
     if exec_process:
-        ssh_line = await capture_ssh_session_line(exec_process)
+        ssh_line = await capture_sshx_link(exec_process)
         if ssh_line:
             update_vps_ssh(container_id, ssh_line)
-            embed = discord.Embed(title="New SSH Session Generated", description=f"```{ssh_line}```", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
+            embed = discord.Embed(title="New SSHX Session Generated", description=f"```{ssh_line}```", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
             embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
             try:
                 await target_user.send(embed=embed)
             except discord.Forbidden:
                 logger.warning(f"Cannot DM user {target_user.id}")
                 if send_response:
-                    embed_dm_fail = discord.Embed(description="New SSH session generated but could not send to DMs (privacy settings).", color=discord.Color.orange())
+                    embed_dm_fail = discord.Embed(description="New SSHX access link generated but could not send to DMs (privacy settings).", color=discord.Color.orange())
                     await interaction.followup.send(embed=embed_dm_fail, ephemeral=True)
                 else:
                     return True
             if send_response:
-                embed_success = discord.Embed(description="New SSH session sent to your DMs.", color=discord.Color.green())
+                embed_success = discord.Embed(description="New SSHX access link sent to your DMs.", color=discord.Color.green())
                 await interaction.followup.send(embed=embed_success, ephemeral=True)
             return True
         else:
-            embed = discord.Embed(description="Failed to generate SSH session.", color=discord.Color.red())
+            embed = discord.Embed(description="Failed to generate SSHX access link.", color=discord.Color.red())
             if send_response:
                 await interaction.followup.send(embed=embed, ephemeral=True)
             return False
     else:
-        embed = discord.Embed(description="Failed to execute tmate.", color=discord.Color.red())
+        embed = discord.Embed(description="Failed to execute SSHX.", color=discord.Color.red())
         if send_response:
             await interaction.followup.send(embed=embed, ephemeral=True)
         return False
@@ -500,9 +502,9 @@ async def manage_vps(interaction: discord.Interaction, vps_identifier, action, t
         if action in ["start", "restart"]:
             regen_success = await regen_ssh_command(interaction, vps_identifier, send_response=False, target_user=target_user)
             if regen_success:
-                embed.description += "\nNew SSH session sent to DMs."
+                embed.description += "\nNew SSHX access link sent to DMs."
             else:
-                embed.description += "\nFailed to generate new SSH session."
+                embed.description += "\nFailed to generate new SSHX access link."
         await interaction.followup.send(embed=embed, ephemeral=True)
     else:
         embed = discord.Embed(description=f"Failed to {action} the VPS.", color=discord.Color.red())
@@ -533,10 +535,10 @@ async def reinstall_vps(interaction: discord.Interaction, vps_identifier, os_typ
     image = get_os_details(os_type)[1]
     new_container_id = await async_docker_run(image, hostname, ram, cpu, disk, new_container_name)
     if new_container_id:
-        await async_install_tmate(new_container_id, os_type)
+        await async_install_sshx(new_container_id, os_type)
         await asyncio.sleep(10)  # Wait longer for install
-        exec_process = await docker_exec_tmate(new_container_id)
-        ssh_line = await capture_ssh_session_line(exec_process)
+        exec_process = await docker_exec_sshx(new_container_id)
+        ssh_line = await capture_sshx_link(exec_process)
         if ssh_line:
             add_vps(user_id, new_container_id, new_container_name, os_type, hostname, ssh_line, ram, cpu, disk)
             os_name = get_os_details(os_type)[0]
@@ -549,7 +551,7 @@ async def reinstall_vps(interaction: discord.Interaction, vps_identifier, os_typ
             embed_success = discord.Embed(description="VPS has been reinstalled. Check your DMs for details.", color=discord.Color.green())
             await interaction.followup.send(embed=embed_success, ephemeral=True)
         else:
-            embed = discord.Embed(description="Reinstall failed: Unable to generate SSH.", color=discord.Color.red())
+            embed = discord.Embed(description="Reinstall failed: Unable to generate SSHX access link.", color=discord.Color.red())
             await interaction.followup.send(embed=embed, ephemeral=True)
             await async_docker_rm(new_container_id)
     else:
@@ -607,10 +609,10 @@ async def create_vps(interaction: discord.Interaction, os_type, ram=DEFAULT_RAM,
         await interaction.followup.send(embed=embed, ephemeral=True)
         return
     await asyncio.sleep(5)  # Wait for container to start
-    await async_install_tmate(container_id, os_type)
+    await async_install_sshx(container_id, os_type)
     await asyncio.sleep(10)  # Wait for install
-    exec_process = await docker_exec_tmate(container_id)
-    ssh_line = await capture_ssh_session_line(exec_process)
+    exec_process = await docker_exec_sshx(container_id)
+    ssh_line = await capture_sshx_link(exec_process)
     if ssh_line:
         add_vps(user_id, container_id, container_name, os_type, hostname, ssh_line, ram, cpu, disk)
         os_name = get_os_details(os_type)[0]
@@ -623,7 +625,7 @@ async def create_vps(interaction: discord.Interaction, os_type, ram=DEFAULT_RAM,
         embed_success = discord.Embed(description="Your VPS is ready! Check your DMs for access details.", color=discord.Color.green())
         await interaction.followup.send(embed=embed_success, ephemeral=True)
     else:
-        embed = discord.Embed(description="Creation failed: Unable to generate SSH session.", color=discord.Color.red())
+        embed = discord.Embed(description="Creation failed: Unable to generate SSHX access link.", color=discord.Color.red())
         await interaction.followup.send(embed=embed, ephemeral=True)
         await async_docker_stop(container_id)
         await asyncio.sleep(2)
