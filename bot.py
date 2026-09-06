@@ -19,8 +19,7 @@ load_dotenv()
 
 # Configuration from .env
 TOKEN = os.getenv('TOKEN', 'DISCORD_BOT_TOKEN')
-ADMIN_ID_RAW = os.getenv('ADMIN_ID', '0').strip()
-ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 0  # Paste your Discord User ID in .env
+ADMIN_ID = int(os.getenv('ADMIN_ID', 0))  # Admin user ID for checks
 BOT_STATUS_NAME = os.getenv('BOT_STATUS_NAME', 'IL8')
 WATERMARK = os.getenv('WATERMARK', 'Made by INFINITE')
 # VPS Defaults from .env
@@ -42,6 +41,20 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Supported operating systems
+OS_IMAGES = {
+    "ubuntu-22.04": ("Ubuntu 22.04", "ubuntu:22.04"),
+    "debian-12": ("Debian 12", "debian:bookworm"),
+    "ubuntu-24.04": ("Ubuntu 24.04", "ubuntu:24.04"),
+    "debian-11": ("Debian 11", "debian:11"),
+    # Backward compatibility for existing database records
+    "ubuntu": ("Ubuntu 22.04", "ubuntu:22.04"),
+    "debian": ("Debian 12", "debian:bookworm"),
+}
+
+def get_os_details(os_type):
+    return OS_IMAGES.get(os_type, OS_IMAGES["ubuntu-22.04"])
 
 # Intents
 intents = discord.Intents.default()
@@ -495,20 +508,6 @@ async def manage_vps(interaction: discord.Interaction, vps_identifier, action, t
         embed = discord.Embed(description=f"Failed to {action} the VPS.", color=discord.Color.red())
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-# Supported OS images
-OS_IMAGES = {
-    "ubuntu-22.04": ("Ubuntu 22.04", "ubuntu:22.04"),
-    "debian-12": ("Debian 12", "debian:bookworm"),
-    "ubuntu-24.04": ("Ubuntu 24.04", "ubuntu:24.04"),
-    "debian-11": ("Debian 11", "debian:11"),
-    # Backward compatibility for existing database records
-    "ubuntu": ("Ubuntu 22.04", "ubuntu:22.04"),
-    "debian": ("Debian 12", "debian:bookworm"),
-}
-
-def get_os_details(os_type):
-    return OS_IMAGES.get(os_type, OS_IMAGES["ubuntu-22.04"])
-
 # Reinstall helper
 async def reinstall_vps(interaction: discord.Interaction, vps_identifier, os_type, target_user=None):
     if target_user is None:
@@ -531,7 +530,7 @@ async def reinstall_vps(interaction: discord.Interaction, vps_identifier, os_typ
     # Create new with unique name
     suffix = random.randint(1000, 9999)
     new_container_name = f"{os_type}-vps-{user_id}-{suffix}"
-    os_name, image = get_os_details(os_type)
+    image = get_os_details(os_type)[1]
     new_container_id = await async_docker_run(image, hostname, ram, cpu, disk, new_container_name)
     if new_container_id:
         await async_install_tmate(new_container_id, os_type)
@@ -601,7 +600,7 @@ async def create_vps(interaction: discord.Interaction, os_type, ram=DEFAULT_RAM,
     hostname = f"{VPS_HOSTNAME}-{user_id}"
     suffix = random.randint(1000, 9999)
     container_name = f"{os_type}-vps-{user_id}-{suffix}"
-    os_name, image = get_os_details(os_type)
+    image = get_os_details(os_type)[1]
     container_id = await async_docker_run(image, hostname, ram, cpu, disk, container_name)
     if not container_id:
         embed = discord.Embed(description="Failed to create Docker container.", color=discord.Color.red())
@@ -752,7 +751,7 @@ async def admin_list(interaction: discord.Interaction):
         embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="admin-list-users", description="Admin: List users with VPS counts")
+@bot.tree.command(name="admin-users", description="Admin: List users with VPS counts")
 @app_commands.guild_only()
 async def admin_list_users(interaction: discord.Interaction):
     if not is_admin(interaction.user):
@@ -823,7 +822,7 @@ async def admin_stats(interaction: discord.Interaction):
     embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="admin-delete-user", description="Admin: Delete all VPS for a user")
+@bot.tree.command(name="admin-del-user", description="Admin: Delete all VPS for a user")
 @app_commands.describe(target_user="The target user")
 @app_commands.guild_only()
 async def admin_delete_user(interaction: discord.Interaction, target_user: discord.User):
@@ -889,7 +888,7 @@ async def admin_vps_info(interaction: discord.Interaction, target_user: discord.
     container_id = vps['container_id']
     uptime = get_uptime(container_id)
     stats = get_stats(container_id)
-    os_name, _ = get_os_details(vps['os_type'])
+    os_name = "Ubuntu 22.04" if vps['os_type'] == "ubuntu" else "Debian 12"
     embed = discord.Embed(title=f"{target_user.name} - VPS Details: {vps['container_name']}", color=discord.Color.blue(), timestamp=datetime.now(timezone.utc))
     embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     embed.add_field(name="OS", value=os_name, inline=True)
@@ -948,6 +947,7 @@ async def about(interaction: discord.Interaction):
         value=(
             "➜ **Name:** IL8\n"
             "➜ **Version:** v1.0\n"
+            "➜ **Developer:** INFINITE\n"
             "➜ **Framework:** Python • discord.py\n"
             "➜ **Uptime Status:** 🟢 Online & Stable\n"
             "➜ **Features:** VPS control, Docker management, real-time monitoring, and more!"
@@ -955,51 +955,53 @@ async def about(interaction: discord.Interaction):
         inline=False
     )
 
-    # Developer Section with more details
+    # Developer Section
     embed.add_field(
-        name="👨‍💻 Meet the Developer • INFINITE",
+        name="👨‍💻 Developer • INFINITE",
         value=(
-            "**INFINITE** is a **Full-Stack Developer**, **DevOps Enthusiast**, and **content creator** focused on building practical tools, server infrastructure, and developer-focused projects.\n\n"
+            "**INFINITE** is the creator of **INFINITE LABS**, focused on VPS, servers, Linux, "
+            "Pterodactyl, Minecraft hosting, and server infrastructure.\n\n"
             "🔹 **Specialties:**\n"
-            "   • VPS & Server Management\n"
+            "   • VPS & Server Management / Infrastructure\n"
             "   • Docker & Containerization\n"
-            "   • Advanced Control Panels\n"
+            "   • Hosting / Control Panel Systems\n"
             "   • QEMU Virtual Machines\n"
-            "   • High-Performance Discord Bots\n"
+            "   • Discord Automation & Bot Development\n"
             "   • Minecraft Server Hosting & Optimization\n\n"
-            "Focused on building **clean code**, **optimized systems**, **reliable infrastructure**, **robust security**, and **modern UI/UX**."
+            "Focused on building, testing, and experimenting with reliable server and hosting setups."
         ),
         inline=False
     )
 
     # Social Links
     embed.add_field(
-        name="🔗 Connect with INFINITE",
+        name="🔗 INFINITE LABS",
         value=(
-            "📺 **YouTube:** [Watch Tutorials & Guides](https://www.youtube.com/@infinite8labs)\n"
-            "💻 **GitHub:** [View Projects & Scripts](https://github.com/nxtinfinite481-png)\n"
+            "📺 **YouTube:** [INFINITE LABS](https://www.youtube.com/@infinite8labs)\n"
+            "💻 **GitHub:** [INFINITE](https://github.com/nxtinfinite481-png)\n"
             "💬 **Discord:** [Join the Community](https://discord.gg/pG22dSmAZD)"
         ),
         inline=False
     )
 
-    # Fun Fact / Extra Touch
+    # Channel Focus
     embed.add_field(
-        name="🎮 Fun Fact",
+        name="🖥️ INFINITE LABS",
         value=(
-            "INFINITE is also a big **Minecraft** fan! Many tutorials cover free/paid hosting, "
-            "server setups, web stores, and getting powerful VPS resources for gaming servers 🟩"
+            "VPS, servers, Minecraft hosting, Linux, Pterodactyl, and server infrastructure. "
+            "Build, test, and experiment with different hosting and server setups."
         ),
         inline=False
     )
 
     embed.set_footer(
-        text="Made by INFINITE | Thank you for using IL8!",
-        icon_url="blob:https://tools.kommodo.ai/466dc438-c23a-49e3-9e77-7fe936e61739"  # Suggested: A profile-related image from YouTube
+        text="Made by INFINITE",
+        icon_url="https://plain-apac-prod-public.komododecks.com/202609/06/0mootbbGU2YubiLIzvDU/image.png"
     )
     embed.set_thumbnail(
-        url="blob:https://tools.kommodo.ai/466dc438-c23a-49e3-9e77-7fe936e61739"  # A cool Discord bot / VPS themed thumbnail for better visuals
+        url="https://plain-apac-prod-public.komododecks.com/202609/06/0mootbbGU2YubiLIzvDU/image.png"
     )
+
     embed.timestamp = discord.utils.utcnow()
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -1021,7 +1023,7 @@ async def user_logs(interaction: discord.Interaction, vps_identifier: str, lines
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Slash Commands
-@bot.tree.command(name="deploy", description="Deploy a new VPS instance with default resources")
+@bot.tree.command(name="create", description="Deploy a new VPS instance with default resources")
 @app_commands.describe(os_type="The OS type for the VPS")
 @app_commands.choices(os_type=[
     app_commands.Choice(name="Ubuntu 22.04", value="ubuntu-22.04"),
@@ -1065,7 +1067,7 @@ async def vps_info(interaction: discord.Interaction, vps_identifier: str = None)
     container_id = vps['container_id']
     uptime = get_uptime(container_id)
     stats = get_stats(container_id)
-    os_name, _ = get_os_details(vps['os_type'])
+    os_name = "Ubuntu 22.04" if vps['os_type'] == "ubuntu" else "Debian 12"
     embed = discord.Embed(title=f"VPS Details: {vps['container_name']}", color=discord.Color.blue(), timestamp=datetime.now(timezone.utc))
     embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     embed.add_field(name="OS", value=os_name, inline=True)
@@ -1084,7 +1086,7 @@ async def vps_info(interaction: discord.Interaction, vps_identifier: str = None)
     embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="regen-ssh", description="Regenerate SSH session for your VPS")
+@bot.tree.command(name="ssh", description="Regenerate SSH session for your VPS")
 @app_commands.describe(vps_identifier="VPS ID or Name (defaults to first)")
 async def regen_ssh(interaction: discord.Interaction, vps_identifier: str = None):
     await regen_ssh_command(interaction, vps_identifier)
@@ -1136,7 +1138,7 @@ async def list_vps(interaction: discord.Interaction):
     embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="remove", description="Remove your VPS instance")
+@bot.tree.command(name="delete", description="Remove your VPS instance")
 @app_commands.describe(vps_identifier="VPS ID or Name")
 async def remove_vps(interaction: discord.Interaction, vps_identifier: str):
     await interaction.response.defer(ephemeral=True)
@@ -1170,7 +1172,7 @@ async def admin_manage(interaction: discord.Interaction, target_user: discord.Us
     await interaction.response.defer()
     await admin_manage_vps(interaction, target_user.id, vps_identifier, action)
 
-@bot.tree.command(name="admin-kill-all", description="Admin: Stop all running VPS instances")
+@bot.tree.command(name="admin-stop-all", description="Admin: Stop all running VPS instances")
 @app_commands.guild_only()
 async def admin_kill_all_cmd(interaction: discord.Interaction):
     await admin_kill_all(interaction)
@@ -1188,30 +1190,30 @@ async def help_cmd(interaction: discord.Interaction):
     embed.set_author(name=bot.user.name, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     embed.set_footer(text=WATERMARK, icon_url=bot.user.avatar.url if bot.user.avatar else None)
     embed.add_field(name="**User Commands**", value="", inline=False)
-    embed.add_field(name="/deploy <os>", value="Deploy a new VPS with default resources (Ubuntu 22.04, Debian 12, Ubuntu 24.04, or Debian 11)", inline=False)
+    embed.add_field(name="/create <os>", value="Create a new VPS with default resources", inline=False)
     embed.add_field(name="/list", value="List all your VPS instances with details", inline=False)
     embed.add_field(name="/vps-info [vps_id]", value="View full details of a VPS including usage and SSH", inline=False)
     embed.add_field(name="/start <vps_id>", value="Start a VPS", inline=False)
     embed.add_field(name="/stop <vps_id>", value="Stop a VPS", inline=False)
     embed.add_field(name="/restart <vps_id>", value="Restart a VPS", inline=False)
-    embed.add_field(name="/regen-ssh [vps_id]", value="Regenerate SSH session", inline=False)
-    embed.add_field(name="/reinstall <vps_id> <os>", value="Reinstall VPS with new OS (keeps resources)", inline=False)
-    embed.add_field(name="/remove <vps_id>", value="Remove a VPS", inline=False)
+    embed.add_field(name="/ssh [vps_id]", value="Regenerate SSH session", inline=False)
+    embed.add_field(name="/reinstall <vps_id> [os]", value="Reinstall VPS with a new OS (keeps resources)", inline=False)
+    embed.add_field(name="/delete <vps_id>", value="Remove a VPS", inline=False)
     embed.add_field(name="/about", value="Show bot & developer information", inline=False)
     embed.add_field(name="/logs <vps_id> [lines]", value="View recent VPS logs", inline=False)
     if ADMIN_ID > 0:
         embed.add_field(name="**Admin Commands**", value="", inline=False)
-        embed.add_field(name="/admin-create <user> <os> [ram] [cpu] [disk]", value="Create VPS for a user with optional resources", inline=False)
+        embed.add_field(name="/admin-create <user> <os> [ram] [cpu] [disk]", value="Create a VPS for a user with optional resources", inline=False)
         embed.add_field(name="/admin-manage <user> <vps> <action>", value="Manage user's VPS (start/stop/restart/delete/suspend/unsuspend)", inline=False)
-        embed.add_field(name="/admin-list-users", value="List users with VPS counts", inline=False)
+        embed.add_field(name="/admin-users", value="List users with VPS counts", inline=False)
         embed.add_field(name="/admin-list", value="List all VPS instances", inline=False)
         embed.add_field(name="/admin-stats", value="View bot statistics", inline=False)
         embed.add_field(name="/admin-vps-info <user> <vps>", value="View full details for a user's VPS", inline=False)
         embed.add_field(name="/admin-logs <user> <vps> [lines]", value="View logs for a user's VPS", inline=False)
-        embed.add_field(name="/admin-delete-user <user>", value="Delete all VPS for a user", inline=False)
+        embed.add_field(name="/admin-del-user <user>", value="Delete all VPS for a user", inline=False)
         embed.add_field(name="/admin-ban <user>", value="Ban a user from creating VPS", inline=False)
         embed.add_field(name="/admin-unban <user>", value="Unban a user", inline=False)
-        embed.add_field(name="/admin-kill-all", value="Stop all running VPS instances", inline=False)
+        embed.add_field(name="/admin-stop-all", value="Stop all running VPS instances", inline=False)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @tasks.loop(minutes=5)
