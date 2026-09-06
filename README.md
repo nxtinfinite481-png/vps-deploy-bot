@@ -1,37 +1,13 @@
-# IL8 VPS Deploy Bot
+# IL8 VPS Bot
 
-A powerful Discord bot for deploying and managing Docker-based VPS instances with multiple Linux OS options.
-
-## Features
-
-* Docker-based VPS deployment
-* Ubuntu 22.04
-* Ubuntu 24.04
-* Debian 11
-* Debian 12
-* VPS management through Discord
-* VPS reinstall support
-* Admin VPS creation
-* Resource management
-* Automatic container management
-* Persistent VPS database
-* Systemd service support
-
-## Requirements
-
-* Ubuntu/Debian VPS
-* Python 3
-* Docker
-* Root access
-* Discord Bot Token
-* Discord User ID for admin access
+IL8 is a Discord VPS management bot by INFINITE.
 
 ## Installation
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/nxtinfinite481-png/vps-deploy-bot
+git clone https://github.com/nxtinfinite481-png/vps-deploy-bot.git
 cd vps-deploy-bot
 ```
 
@@ -39,51 +15,58 @@ cd vps-deploy-bot
 
 ```bash
 cp il8.env .env
-```
-
-Edit the `.env` file and add your Discord Bot Token and Admin ID:
-
-```bash
 nano .env
 ```
 
-### 3. Install Python pip
+Add your Discord bot token and admin user ID:
+
+```env
+TOKEN=your_discord_bot_token
+ADMIN_ID=paste your discord user id
+BOT_STATUS_NAME=IL8
+WATERMARK=Made by INFINITE
+DEFAULT_RAM=2g
+DEFAULT_CPU=1
+DEFAULT_DISK=10G
+VPS_HOSTNAME=infinite-vps
+```
+
+Save and exit.
+
+### 3. Install Python and dependencies
 
 ```bash
+apt update -y
 apt install python3-pip -y
-```
-
-### 4. Allow system-wide pip installation
-
-```bash
 mkdir -p ~/.config/pip && echo -e "[global]\nbreak-system-packages = true" > ~/.config/pip/pip.conf
-```
-
-### 5. Install Python dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-## Run the Bot with Systemd
-
-Create the systemd service:
+### 4. Start the bot
 
 ```bash
-sudo nano /etc/systemd/system/bot.service
+python3 bot.py
 ```
 
-Add:
+## Systemd
+
+Create the service:
+
+```bash
+sudo nano /etc/systemd/system/il8.service
+```
+
+Paste:
 
 ```ini
 [Unit]
-Description=Vps Discord Bot
+Description=IL8 VPS Discord Bot
 After=network.target
 
 [Service]
 User=root
-WorkingDirectory=/root
-ExecStart=/usr/bin/python3 /root/bot.py
+WorkingDirectory=/root/vps-deploy-bot
+ExecStart=/usr/bin/python3 /root/vps-deploy-bot/bot.py
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
@@ -92,78 +75,97 @@ Environment=PYTHONUNBUFFERED=1
 WantedBy=multi-user.target
 ```
 
-Save and exit.
-
-### Start the Bot
+Then run:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl restart bot
+sudo systemctl enable il8
+sudo systemctl restart il8
 ```
 
-### Enable the Bot on Boot
+Check status:
 
 ```bash
-sudo systemctl enable bot
+sudo systemctl status il8
 ```
 
-### Check Bot Status
+View logs:
 
 ```bash
-sudo systemctl status bot
+journalctl -u il8 -f
 ```
 
-### View Bot Logs
+## Requirements
 
-```bash
-journalctl -u bot -f
-```
-
-## Environment Configuration
-
-The `.env` file should contain your bot configuration.
-
-Example:
-
-```env
-TOKEN=YOUR_DISCORD_BOT_TOKEN
-ADMIN_ID=paste your discord user id
-BOT_STATUS_NAME=IL8
-WATERMARK=Made by INFINITE
-```
-
-Keep your `.env` file private and never upload it to GitHub.
-
-## Default VPS Configuration
-
-| Setting          | Value        |
-| ---------------- | ------------ |
-| Default RAM      | 2GB          |
-| Default CPU      | 1 Core       |
-| Default Disk     | 10GB         |
-| VPS Limit / User | 1            |
-| Total VPS Limit  | 50           |
-| Hostname         | infinite-vps |
+- Python 3
+- Docker
+- Discord Bot Token
+- Linux VPS/server
+- Discord bot with the required application commands enabled
 
 ## Supported Operating Systems
 
-* Ubuntu 22.04
-* Ubuntu 24.04
-* Debian 11
-* Debian 12
+- Ubuntu 22.04
+- Debian 12
+- Ubuntu 24.04
+- Debian 11
+
+## Commands
+
+### User Commands
+
+```text
+/create <os>
+/list
+/vps-info [vps_id]
+/ssh [vps_id]
+/start <vps_id>
+/stop <vps_id>
+/restart <vps_id>
+/reinstall <vps_id> [os]
+/delete <vps_id>
+/about
+/logs <vps_id> [lines]
+/ping
+/help
+```
+
+### Admin Commands
+
+```text
+/admin-create
+/admin-list
+/admin-users
+/admin-vps-info
+/admin-del-user
+/admin-stop-all
+/admin-manage
+/admin-stats
+/admin-logs
+/admin-ban
+/admin-unban
+```
+
+## Configuration
+
+The bot uses:
+
+```text
+.env
+bot.db
+bot.log
+```
+
+The database and log files are created/used by the bot during operation.
 
 ## Developer
 
-**INFINITE**
+**IL8**  
+**Version:** v1.0  
+**Developer:** INFINITE
 
-Full-Stack Developer, DevOps Enthusiast and Content Creator focused on developer tools, server infrastructure, VPS systems, automation and Discord bots.
-
-### Links
-
-* YouTube: https://www.youtube.com/@infinite8labs
-* GitHub: https://github.com/nxtinfinite481-png
-* Discord: https://discord.gg/pG22dSmAZD
-
----
+YouTube: https://www.youtube.com/@infinite8labs  
+GitHub: https://github.com/nxtinfinite481-png  
+Discord: https://discord.gg/pG22dSmAZD
 
 Made by INFINITE
