@@ -1,27 +1,73 @@
-# IL8 VPS Bot
+# IL8 VPS Deploy Bot
 
-IL8 is a Discord VPS management bot by INFINITE.
+A powerful Discord bot for deploying and managing Docker-based VPS instances with multiple Linux OS options.
+
+## Features
+
+- Docker-based VPS deployment
+- Ubuntu 22.04
+- Ubuntu 24.04
+- Debian 11
+- Debian 12
+- VPS management through Discord
+- VPS reinstall support
+- Admin VPS creation
+- Resource management
+- Automatic container management
+- Persistent VPS database
+- Systemd service support
+
+## Requirements
+
+- Ubuntu/Debian VPS
+- Python 3
+- Docker
+- Root access
+- Discord Bot Token
+- Discord User ID for admin access
 
 ## Installation
 
-### 1. Clone the repository
+### 1. Install Docker
+
+If Docker is not already installed:
+
+```bash
+apt update -y
+apt install docker.io -y
+systemctl enable docker
+systemctl start docker
+```
+
+Check Docker:
+
+```bash
+docker --version
+```
+
+### 2. Clone the repository
 
 ```bash
 git clone https://github.com/nxtinfinite481-png/vps-deploy-bot.git
 cd vps-deploy-bot
 ```
 
-### 2. Create the environment file
+### 3. Create the environment file
 
 ```bash
 cp il8.env .env
+```
+
+Edit the `.env` file:
+
+```bash
 nano .env
 ```
 
-Add your Discord bot token and admin user ID:
+Add your Discord Bot Token and Admin ID:
 
 ```env
-TOKEN=your_discord_bot_token
+TOKEN=YOUR_DISCORD_BOT_TOKEN
 ADMIN_ID=paste your discord user id
 BOT_STATUS_NAME=IL8
 WATERMARK=Made by INFINITE
@@ -33,35 +79,38 @@ VPS_HOSTNAME=infinite-vps
 
 Save and exit.
 
-### 3. Install Python and dependencies
+### 4. Install Python pip
 
 ```bash
-apt update -y
 apt install python3-pip -y
+```
+
+### 5. Allow system-wide pip installation
+
+```bash
 mkdir -p ~/.config/pip && echo -e "[global]\nbreak-system-packages = true" > ~/.config/pip/pip.conf
+```
+
+### 6. Install Python dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 4. Start the bot
+## Run the Bot with Systemd
 
-```bash
-python3 bot.py
-```
-
-## Systemd
-
-Create the service:
+Create the systemd service:
 
 ```bash
 sudo nano /etc/systemd/system/il8.service
 ```
 
-Paste:
+Add:
 
 ```ini
 [Unit]
 Description=IL8 VPS Discord Bot
-After=network.target
+After=network.target docker.service
 
 [Service]
 User=root
@@ -75,44 +124,71 @@ Environment=PYTHONUNBUFFERED=1
 WantedBy=multi-user.target
 ```
 
-Then run:
+Save and exit.
+
+### Start the Bot
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable il8
 sudo systemctl restart il8
 ```
 
-Check status:
+### Enable the Bot on Boot
+
+```bash
+sudo systemctl enable il8
+```
+
+### Check Bot Status
 
 ```bash
 sudo systemctl status il8
 ```
 
-View logs:
+### View Bot Logs
 
 ```bash
 journalctl -u il8 -f
 ```
 
-## Requirements
+## Environment Configuration
 
-- Python 3
-- Docker
-- Discord Bot Token
-- Linux VPS/server
-- Discord bot with the required application commands enabled
+The `.env` file should contain your bot configuration.
+
+Example:
+
+```env
+TOKEN=YOUR_DISCORD_BOT_TOKEN
+ADMIN_ID=paste your discord user id
+BOT_STATUS_NAME=IL8
+WATERMARK=Made by INFINITE
+DEFAULT_RAM=2g
+DEFAULT_CPU=1
+DEFAULT_DISK=10G
+VPS_HOSTNAME=infinite-vps
+```
+
+Keep your `.env` file private and never upload it to GitHub.
+
+## Default VPS Configuration
+
+| Setting | Value |
+| --- | --- |
+| Default RAM | 2GB |
+| Default CPU | 1 Core |
+| Default Disk | 10GB |
+| VPS Limit / User | 1 |
+| Total VPS Limit | 50 |
+| Hostname | infinite-vps |
 
 ## Supported Operating Systems
 
 - Ubuntu 22.04
-- Debian 12
 - Ubuntu 24.04
 - Debian 11
+- Debian 12
 
-## Commands
-
-### User Commands
+## User Commands
 
 ```text
 /create <os>
@@ -130,7 +206,7 @@ journalctl -u il8 -f
 /help
 ```
 
-### Admin Commands
+## Admin Commands
 
 ```text
 /admin-create
@@ -146,26 +222,18 @@ journalctl -u il8 -f
 /admin-unban
 ```
 
-## Configuration
-
-The bot uses:
-
-```text
-.env
-bot.db
-bot.log
-```
-
-The database and log files are created/used by the bot during operation.
-
 ## Developer
 
-**IL8**  
-**Version:** v1.0  
-**Developer:** INFINITE
+**INFINITE**
 
-YouTube: https://www.youtube.com/@infinite8labs  
-GitHub: https://github.com/nxtinfinite481-png  
-Discord: https://discord.gg/pG22dSmAZD
+Full-Stack Developer, DevOps Enthusiast and Content Creator focused on server infrastructure, VPS systems, Linux, hosting, automation, Discord bots and Minecraft server technologies.
+
+### Links
+
+- YouTube: https://www.youtube.com/@infinite8labs
+- GitHub: https://github.com/nxtinfinite481-png
+- Discord: https://discord.gg/pG22dSmAZD
+
+---
 
 Made by INFINITE
